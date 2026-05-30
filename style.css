@@ -1,0 +1,322 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* ── Reset & base ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:         #1C1C1E;
+  --surface:    #272728;
+  --surface2:   #3A3A3C;
+  --border:     #3A3A3C;
+  --purple-600: #991DC8;
+  --purple-500: #C363E8;
+  --purple-400: #D490EF;
+  --grey-300:   #B1B1B4;
+  --grey-400:   #8E8E93;
+  --grey-500:   #636366;
+  --error:      #FF453A;
+  --success:    #32D74B;
+  --white:      #FFFFFF;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg);
+  color: var(--white);
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Nav ──────────────────────────────────────────────────────── */
+nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 56px;
+}
+
+.nav-logo {
+  font-size: 16px;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--purple-500), var(--purple-600));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-decoration: none;
+  margin-right: auto;
+}
+
+nav a {
+  color: var(--grey-400);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: color .15s, background .15s;
+  white-space: nowrap;
+}
+
+nav a:hover, nav a.active {
+  color: var(--white);
+  background: var(--surface2);
+}
+
+/* ── Main content ─────────────────────────────────────────────── */
+main {
+  flex: 1;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+/* ── Typography ───────────────────────────────────────────────── */
+h1 {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--grey-400);
+  margin-bottom: 40px;
+}
+
+h2 {
+  font-size: 18px;
+  font-weight: 600;
+  margin-top: 40px;
+  margin-bottom: 12px;
+  color: var(--white);
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 24px;
+  margin-bottom: 8px;
+  color: var(--grey-300);
+}
+
+p {
+  font-size: 15px;
+  color: var(--grey-300);
+  margin-bottom: 14px;
+  line-height: 1.7;
+}
+
+ul, ol {
+  padding-left: 24px;
+  margin-bottom: 14px;
+}
+
+li {
+  font-size: 15px;
+  color: var(--grey-300);
+  margin-bottom: 6px;
+  line-height: 1.6;
+}
+
+a { color: var(--purple-400); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Divider ──────────────────────────────────────────────────── */
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 40px 0;
+}
+
+/* ── Info card ────────────────────────────────────────────────── */
+.info-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 32px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.info-card .icon {
+  font-size: 20px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.info-card p { margin: 0; font-size: 14px; }
+
+/* ── Form ─────────────────────────────────────────────────────── */
+.form-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px;
+  margin-top: 32px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--grey-400);
+  letter-spacing: 0.3px;
+}
+
+input, select, textarea {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--white);
+  font-family: inherit;
+  font-size: 15px;
+  padding: 12px 16px;
+  transition: border-color .15s;
+  outline: none;
+  width: 100%;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--purple-600);
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--grey-500);
+}
+
+select option { background: var(--surface); }
+
+textarea { resize: vertical; min-height: 100px; }
+
+.btn-submit {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--purple-500), var(--purple-600));
+  border: none;
+  border-radius: 100px;
+  color: var(--white);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: opacity .2s;
+}
+
+.btn-submit:hover { opacity: 0.88; }
+.btn-submit:active { opacity: 0.75; }
+
+.form-note {
+  font-size: 12px;
+  color: var(--grey-500);
+  text-align: center;
+  margin-top: 16px;
+}
+
+/* ── Success / error messages (Formspree SDK) ─────────────────── */
+.success-msg {
+  display: none;
+  background: rgba(50, 215, 75, 0.1);
+  border: 1px solid rgba(50, 215, 75, 0.3);
+  border-radius: 12px;
+  padding: 16px 20px;
+  color: var(--success);
+  font-size: 14px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+/* SDK sets aria-hidden="false" on success/error banners when active */
+[data-fs-success]:not([aria-hidden="false"]),
+[data-fs-error]:not([aria-hidden="false"]) { display: none; }
+[data-fs-success][aria-hidden="false"],
+[data-fs-error][aria-hidden="false"] { display: block; }
+
+.error-banner {
+  background: rgba(255, 69, 58, 0.1);
+  border: 1px solid rgba(255, 69, 58, 0.3);
+  border-radius: 12px;
+  padding: 14px 18px;
+  color: var(--error);
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.field-error {
+  font-size: 12px;
+  color: var(--error);
+  margin-top: 4px;
+  display: block;
+  min-height: 0;
+}
+
+/* ── Steps ────────────────────────────────────────────────────── */
+.steps { list-style: none; padding: 0; margin-bottom: 14px; }
+.steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.step-num {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(153, 29, 200, 0.2);
+  border: 1px solid rgba(153, 29, 200, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--purple-400);
+  margin-top: 1px;
+}
+
+/* ── Footer ───────────────────────────────────────────────────── */
+footer {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--grey-500);
+}
+
+footer a { color: var(--grey-400); }
+footer a:hover { color: var(--white); }
+
+/* ── Responsive ───────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  h1 { font-size: 26px; }
+  .nav-inner { gap: 2px; }
+  nav a { padding: 6px 8px; font-size: 12px; }
+  .form-card { padding: 24px 20px; }
+}

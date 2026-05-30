@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Delete Account – Solidten</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<nav>
+  <div class="nav-inner">
+    <a class="nav-logo" href="privacy-policy.html">Solidten</a>
+    <a href="privacy-policy.html">Privacy Policy</a>
+    <a href="terms.html">Terms</a>
+    <a href="delete-account.html" class="active">Delete Account</a>
+  </div>
+</nav>
+
+<main>
+  <h1>Delete Your Account</h1>
+  <p class="subtitle">Permanently remove your Solidten account and all associated data.</p>
+
+  <!-- Option A: delete in-app -->
+  <h2>Delete directly in the app</h2>
+  <p>The fastest way to delete your account is directly inside the Solidten app:</p>
+  <ul class="steps">
+    <li><span class="step-num">1</span><span>Open the Solidten app</span></li>
+    <li><span class="step-num">2</span><span>Go to your <strong>Profile</strong> tab (bottom right)</span></li>
+    <li><span class="step-num">3</span><span>Tap <strong>Settings</strong></span></li>
+    <li><span class="step-num">4</span><span>Scroll down and tap <strong>Delete Account</strong></span></li>
+    <li><span class="step-num">5</span><span>Confirm in the dialog — deletion is immediate</span></li>
+  </ul>
+
+  <div class="info-card">
+    <span class="icon">⚠️</span>
+    <p>Deletion is <strong>permanent and immediate</strong>. Your profile, photos, all ratings given, and all ratings received are removed. This cannot be undone.</p>
+  </div>
+
+  <hr class="divider" />
+
+  <!-- Option B: request form -->
+  <h2>Can't access the app? Submit a request</h2>
+  <p>If you no longer have access to your account or the app, fill in the form below and we will manually delete your account within <strong>7 business days</strong>.</p>
+
+  <div class="form-card">
+
+    <!-- Formspree success / error banners -->
+    <div data-fs-success class="success-msg">
+      ✓ Your request has been received. We will delete your account and confirm via email within 7 business days.
+    </div>
+    <div data-fs-error class="error-banner"></div>
+
+    <form id="deleteForm" method="POST">
+
+      <div class="form-group">
+        <label for="email">Email address on your account *</label>
+        <input
+          type="email"
+          id="email"
+          name="email"
+          placeholder="you@example.com"
+          data-fs-field
+          required
+        />
+        <span data-fs-error="email" class="field-error"></span>
+      </div>
+
+      <div class="form-group">
+        <label for="name">Your name</label>
+        <input
+          type="text"
+          id="name"
+          name="name"
+          placeholder="Optional"
+          data-fs-field
+        />
+        <span data-fs-error="name" class="field-error"></span>
+      </div>
+
+      <div class="form-group">
+        <label for="reason">Reason for deletion</label>
+        <select id="reason" name="reason" data-fs-field>
+          <option value="" disabled selected>Select a reason (optional)</option>
+          <option value="no-longer-use">I no longer use the app</option>
+          <option value="privacy">Privacy concerns</option>
+          <option value="found-alternative">Found an alternative</option>
+          <option value="technical">Technical issues</option>
+          <option value="other">Other</option>
+        </select>
+        <span data-fs-error="reason" class="field-error"></span>
+      </div>
+
+      <div class="form-group">
+        <label for="message">Additional comments</label>
+        <textarea
+          id="message"
+          name="message"
+          placeholder="Anything you'd like us to know (optional)"
+          data-fs-field
+        ></textarea>
+        <span data-fs-error="message" class="field-error"></span>
+      </div>
+
+      <button type="submit" class="btn-submit" data-fs-submit-btn>
+        Submit Deletion Request
+      </button>
+
+      <p class="form-note">We will process your request and confirm via email within 7 business days.</p>
+    </form>
+
+  </div>
+</main>
+
+<footer>
+  <p>© 2026 Solidten &nbsp;·&nbsp; <a href="privacy-policy.html">Privacy Policy</a> &nbsp;·&nbsp; <a href="terms.html">Terms</a> &nbsp;·&nbsp; <a href="delete-account.html">Delete Account</a></p>
+</footer>
+
+<!-- Formspree Ajax SDK -->
+<script>
+  window.formspree = window.formspree || function () { (formspree.q = formspree.q || []).push(arguments); };
+  formspree('initForm', { formElement: '#deleteForm', formId: 'xjgzzzzd' });
+</script>
+<script src="https://unpkg.com/@formspree/ajax@1" defer></script>
+
+</body>
+</html>
