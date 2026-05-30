@@ -45,13 +45,12 @@
 
   <div class="form-card">
 
-    <!-- Formspree success / error banners -->
-    <div data-fs-success class="success-msg">
+    <div id="successMsg" class="success-msg" style="display:none;">
       ✓ Your request has been received. We will delete your account and confirm via email within 7 business days.
     </div>
-    <div data-fs-error class="error-banner"></div>
+    <div id="errorMsg" class="error-banner" style="display:none;"></div>
 
-    <form id="deleteForm" method="POST">
+    <form id="deleteForm">
 
       <div class="form-group">
         <label for="email">Email address on your account *</label>
@@ -60,10 +59,9 @@
           id="email"
           name="email"
           placeholder="you@example.com"
-          data-fs-field
           required
         />
-        <span data-fs-error="email" class="field-error"></span>
+        <span id="emailError" class="field-error"></span>
       </div>
 
       <div class="form-group">
@@ -73,22 +71,19 @@
           id="name"
           name="name"
           placeholder="Optional"
-          data-fs-field
         />
-        <span data-fs-error="name" class="field-error"></span>
       </div>
 
       <div class="form-group">
         <label for="reason">Reason for deletion</label>
-        <select id="reason" name="reason" data-fs-field>
+        <select id="reason" name="reason">
           <option value="" disabled selected>Select a reason (optional)</option>
-          <option value="no-longer-use">I no longer use the app</option>
-          <option value="privacy">Privacy concerns</option>
-          <option value="found-alternative">Found an alternative</option>
-          <option value="technical">Technical issues</option>
-          <option value="other">Other</option>
+          <option value="I no longer use the app">I no longer use the app</option>
+          <option value="Privacy concerns">Privacy concerns</option>
+          <option value="Found an alternative">Found an alternative</option>
+          <option value="Technical issues">Technical issues</option>
+          <option value="Other">Other</option>
         </select>
-        <span data-fs-error="reason" class="field-error"></span>
       </div>
 
       <div class="form-group">
@@ -97,12 +92,10 @@
           id="message"
           name="message"
           placeholder="Anything you'd like us to know (optional)"
-          data-fs-field
         ></textarea>
-        <span data-fs-error="message" class="field-error"></span>
       </div>
 
-      <button type="submit" class="btn-submit" data-fs-submit-btn>
+      <button type="submit" id="submitBtn" class="btn-submit">
         Submit Deletion Request
       </button>
 
@@ -116,12 +109,62 @@
   <p>© 2026 Solidten &nbsp;·&nbsp; <a href="privacy-policy.html">Privacy Policy</a> &nbsp;·&nbsp; <a href="terms.html">Terms</a> &nbsp;·&nbsp; <a href="delete-account.html">Delete Account</a></p>
 </footer>
 
-<!-- Formspree Ajax SDK -->
 <script>
-  window.formspree = window.formspree || function () { (formspree.q = formspree.q || []).push(arguments); };
-  formspree('initForm', { formElement: '#deleteForm', formId: 'xjgzzzzd' });
+  // ── Replace this with your Google Apps Script web app URL ──────────────────
+  const SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL';
+  // ───────────────────────────────────────────────────────────────────────────
+
+  const form      = document.getElementById('deleteForm');
+  const submitBtn = document.getElementById('submitBtn');
+  const successEl = document.getElementById('successMsg');
+  const errorEl   = document.getElementById('errorMsg');
+  const emailErr  = document.getElementById('emailError');
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    // Reset state
+    emailErr.textContent = '';
+    errorEl.style.display = 'none';
+
+    const email = document.getElementById('email').value.trim();
+    if (!email) {
+      emailErr.textContent = 'Please enter your email address.';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending…';
+
+    const payload = {
+      email:   email,
+      name:    document.getElementById('name').value.trim(),
+      reason:  document.getElementById('reason').value,
+      message: document.getElementById('message').value.trim(),
+    };
+
+    try {
+      // mode: 'no-cors' is required because Apps Script cannot set CORS headers.
+      // The request still goes through and the email is sent — we just can't
+      // read the response, so we show success optimistically.
+      await fetch(SCRIPT_URL, {
+        method:  'POST',
+        mode:    'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+
+      form.style.display    = 'none';
+      successEl.style.display = 'block';
+
+    } catch (err) {
+      errorEl.textContent = 'Could not send your request. Please email us directly at solid10.support@gmail.com';
+      errorEl.style.display = 'block';
+      submitBtn.disabled    = false;
+      submitBtn.textContent = 'Submit Deletion Request';
+    }
+  });
 </script>
-<script src="https://unpkg.com/@formspree/ajax@1" defer></script>
 
 </body>
 </html>
