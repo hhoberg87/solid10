@@ -51,14 +51,16 @@ nav {
 }
 
 .nav-logo {
-  font-size: 16px;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--purple-500), var(--purple-600));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
   text-decoration: none;
   margin-right: auto;
+  display: flex;
+  align-items: center;
+}
+
+.nav-logo img {
+  height: 28px;
+  width: auto;
+  display: block;
 }
 
 nav a {
@@ -313,10 +315,152 @@ footer {
 footer a { color: var(--grey-400); }
 footer a:hover { color: var(--white); }
 
+/* ── Home page ────────────────────────────────────────────────── */
+.home-page { background: var(--bg); }
+
+.hero-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 64px 24px 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-glow {
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(153,29,200,0.22) 0%, rgba(153,29,200,0.06) 50%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-logo {
+  height: 100px;
+  width: auto;
+  margin-bottom: 40px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-title {
+  font-size: 42px;
+  font-weight: 700;
+  line-height: 1.15;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(135deg, #fff 40%, var(--purple-400));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-desc {
+  font-size: 17px;
+  color: var(--grey-300);
+  max-width: 460px;
+  line-height: 1.65;
+  margin-bottom: 44px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Store buttons ────────────────────────────────────────────── */
+.store-buttons {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 40px;
+  position: relative;
+  z-index: 1;
+}
+
+.store-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--white);
+  color: #000;
+  text-decoration: none;
+  padding: 12px 22px;
+  border-radius: 14px;
+  min-width: 170px;
+  transition: transform .15s, opacity .15s;
+}
+
+.store-btn:hover { transform: translateY(-2px); text-decoration: none; }
+.store-btn:active { transform: translateY(0); opacity: .85; }
+
+.store-btn--soon {
+  background: var(--surface);
+  color: var(--grey-400);
+  border: 1px solid var(--border);
+  cursor: default;
+  pointer-events: none;
+}
+
+.store-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.store-btn-text {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.store-btn-sub {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.65;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+
+.store-btn-name {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Feature pills ────────────────────────────────────────────── */
+.feature-pills {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+}
+
+.pill {
+  background: rgba(153, 29, 200, 0.12);
+  border: 1px solid rgba(153, 29, 200, 0.3);
+  color: var(--purple-400);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: 100px;
+}
+
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 600px) {
   h1 { font-size: 26px; }
   .nav-inner { gap: 2px; }
   nav a { padding: 6px 8px; font-size: 12px; }
   .form-card { padding: 24px 20px; }
+  .hero-title { font-size: 32px; }
+  .hero-logo { height: 80px; }
+  .store-btn { min-width: 150px; padding: 10px 18px; }
 }
