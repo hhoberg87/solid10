@@ -48,9 +48,16 @@
     <div id="successMsg" class="success-msg" style="display:none;">
       ✓ Your request has been received. We will delete your account and confirm via email within 7 business days.
     </div>
-    <div id="errorMsg" class="error-banner" style="display:none;"></div>
 
-    <form id="deleteForm">
+    <!-- Hidden iframe absorbs the form POST response, avoiding CORS entirely -->
+    <iframe name="hidden_iframe" id="hidden_iframe" style="display:none;"></iframe>
+
+    <form
+      id="deleteForm"
+      action="https://script.google.com/macros/s/AKfycbwMVBVSvTSroVHUQ7oEd9TzqJBELL8_6ut0auUrBfA/exec"
+      method="POST"
+      target="hidden_iframe"
+    >
 
       <div class="form-group">
         <label for="email">Email address on your account *</label>
@@ -110,58 +117,34 @@
 </footer>
 
 <script>
-  // ── Replace this with your Google Apps Script web app URL ──────────────────
-  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwMVBVSvTSroVHUQ7oEd9TzqJBELL8_6ut0auUrBfA/exec';
-  // ───────────────────────────────────────────────────────────────────────────
-
   const form      = document.getElementById('deleteForm');
   const submitBtn = document.getElementById('submitBtn');
   const successEl = document.getElementById('successMsg');
-  const errorEl   = document.getElementById('errorMsg');
   const emailErr  = document.getElementById('emailError');
+  const iframe    = document.getElementById('hidden_iframe');
 
-  form.addEventListener('submit', async function (e) {
-    e.preventDefault();
+  let submitted = false;
 
-    // Reset state
+  form.addEventListener('submit', function (e) {
     emailErr.textContent = '';
-    errorEl.style.display = 'none';
-
     const email = document.getElementById('email').value.trim();
     if (!email) {
+      e.preventDefault();
       emailErr.textContent = 'Please enter your email address.';
       return;
     }
-
-    submitBtn.disabled = true;
+    submitted = true;
+    submitBtn.disabled    = true;
     submitBtn.textContent = 'Sending…';
+    // Form submits natively to hidden_iframe — no fetch, no CORS
+  });
 
-    const payload = {
-      email:   email,
-      name:    document.getElementById('name').value.trim(),
-      reason:  document.getElementById('reason').value,
-      message: document.getElementById('message').value.trim(),
-    };
-
-    try {
-      // mode: 'no-cors' is required because Apps Script cannot set CORS headers.
-      // The request still goes through and the email is sent — we just can't
-      // read the response, so we show success optimistically.
-      await fetch(SCRIPT_URL, {
-        method:  'POST',
-        mode:    'no-cors',
-        headers: { 'Content-Type': 'text/plain' },
-        body:    JSON.stringify(payload),
-      });
-
+  // iframe fires 'load' when the Apps Script response arrives
+  iframe.addEventListener('load', function () {
+    if (submitted) {
+      submitted = false;
       form.style.display    = 'none';
       successEl.style.display = 'block';
-
-    } catch (err) {
-      errorEl.textContent = 'Could not send your request. Please email us directly at solid10.support@gmail.com';
-      errorEl.style.display = 'block';
-      submitBtn.disabled    = false;
-      submitBtn.textContent = 'Submit Deletion Request';
     }
   });
 </script>
