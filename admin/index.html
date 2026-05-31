@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solidten Admin</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a12;
+      --surface:   #13131f;
+      --border:    #24243a;
+      --purple:    #8b5cf6;
+      --purple-dim:#4c1d95;
+      --text:      #e8e8f0;
+      --muted:     #6b6b8a;
+      --red:       #ef4444;
+      --amber:     #f59e0b;
+      --green:     #10b981;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Login ──────────────────────────────────────────────────────────── */
+    #login-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .login-logo {
+      display: block;
+      height: 56px;
+      margin: 0 auto 28px;
+    }
+
+    .login-title {
+      font-size: 22px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+
+    .login-sub {
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 28px;
+      font-size: 13px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      margin-bottom: 6px;
+    }
+
+    input[type=email], input[type=password] {
+      display: block;
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 14px;
+      padding: 11px 14px;
+      outline: none;
+      transition: border-color .15s;
+      margin-bottom: 16px;
+    }
+
+    input[type=email]:focus, input[type=password]:focus {
+      border-color: var(--purple);
+    }
+
+    .btn-primary {
+      display: block;
+      width: 100%;
+      background: var(--purple);
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      padding: 13px;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+
+    .btn-primary:hover  { opacity: .88; }
+    .btn-primary:active { opacity: .75; }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+    #login-error {
+      color: var(--red);
+      font-size: 13px;
+      text-align: center;
+      margin-top: 14px;
+      min-height: 18px;
+    }
+
+    /* ── Dashboard ──────────────────────────────────────────────────────── */
+    #dashboard { display: none; }
+
+    .topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .topbar img { height: 32px; }
+
+    .topbar-title {
+      font-size: 15px;
+      font-weight: 700;
+      flex: 1;
+    }
+
+    .topbar-email {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .btn-link {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+
+    .btn-link:hover { color: var(--text); border-color: var(--muted); }
+
+    .main {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+
+    /* Stats row */
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      flex: 1;
+      min-width: 120px;
+    }
+
+    .stat-card .num {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .stat-card .lbl {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    .stat-card.red  .num { color: var(--red); }
+    .stat-card.amber .num { color: var(--amber); }
+    .stat-card.purple .num { color: var(--purple); }
+
+    /* Section heading */
+    .section-heading {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 100px;
+      padding: 2px 8px;
+    }
+
+    .badge-red    { background: rgba(239,68,68,.15);  color: var(--red); }
+    .badge-amber  { background: rgba(245,158,11,.15); color: var(--amber); }
+    .badge-green  { background: rgba(16,185,129,.15); color: var(--green); }
+    .badge-purple { background: rgba(139,92,246,.15); color: var(--purple); }
+
+    /* Profile cards */
+    .profile-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .profile-card-top {
+      display: flex;
+      gap: 16px;
+      padding: 16px;
+      align-items: flex-start;
+    }
+
+    .profile-photo {
+      width: 72px;
+      height: 72px;
+      border-radius: 10px;
+      object-fit: cover;
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+
+    .profile-photo.placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--purple);
+      background: var(--purple-dim);
+    }
+
+    .profile-info { flex: 1; min-width: 0; }
+
+    .profile-name {
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .profile-uid {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: monospace;
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+
+    .profile-meta {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+
+    .profile-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn-action {
+      border: none;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 7px 14px;
+      cursor: pointer;
+      transition: opacity .15s;
+    }
+
+    .btn-action:hover  { opacity: .82; }
+    .btn-action:active { opacity: .65; }
+    .btn-action:disabled { opacity: .35; cursor: not-allowed; }
+
+    .btn-restore { background: rgba(16,185,129,.18);  color: var(--green); }
+    .btn-confirm { background: rgba(245,158,11,.18);  color: var(--amber); }
+    .btn-ban     { background: rgba(239,68,68,.18);   color: var(--red); }
+
+    /* Reports list (collapsible) */
+    .reports-toggle {
+      background: none;
+      border: none;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      cursor: pointer;
+      width: 100%;
+      padding: 10px 16px;
+      text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: color .15s;
+    }
+
+    .reports-toggle:hover { color: var(--text); }
+
+    .reports-list {
+      border-top: 1px solid var(--border);
+      display: none;
+    }
+
+    .report-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+    }
+
+    .report-row:last-child { border-bottom: none; }
+
+    .report-category { font-weight: 600; }
+    .report-sub { color: var(--muted); font-size: 12px; }
+    .report-time { color: var(--muted); font-size: 11px; text-align: right; white-space: nowrap; }
+
+    /* Empty state */
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 64px 24px;
+    }
+
+    .empty-icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-title { font-size: 18px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+
+    /* Loading */
+    .spinner {
+      display: inline-block;
+      width: 20px; height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--purple);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-state {
+      text-align: center;
+      padding: 64px 24px;
+      color: var(--muted);
+    }
+
+    @media (max-width: 600px) {
+      .report-row { grid-template-columns: 1fr; }
+      .report-time { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Login ────────────────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-card">
+    <img class="login-logo" src="../logo.png" alt="Solidten" />
+    <p class="login-title">Admin Panel</p>
+    <p class="login-sub">Sign in with your admin account</p>
+
+    <label for="email">Email</label>
+    <input type="email" id="email" value="solid10.support@gmail.com" autocomplete="email" />
+
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="Password" autocomplete="current-password" />
+
+    <button class="btn-primary" id="login-btn" onclick="doLogin()">Sign in</button>
+    <p id="login-error"></p>
+  </div>
+</div>
+
+<!-- ── Dashboard ─────────────────────────────────────────────────────────────── -->
+<div id="dashboard">
+  <div class="topbar">
+    <img src="../logo.png" alt="Solidten" />
+    <span class="topbar-title">Admin Panel</span>
+    <span class="topbar-email" id="topbar-email"></span>
+    <button class="btn-link" onclick="doSignOut()">Sign out</button>
+  </div>
+
+  <div class="main">
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card red">
+        <div class="num" id="stat-hidden">—</div>
+        <div class="lbl">Profiles hidden</div>
+      </div>
+      <div class="stat-card amber">
+        <div class="num" id="stat-suspended">—</div>
+        <div class="lbl">Accounts suspended</div>
+      </div>
+      <div class="stat-card purple">
+        <div class="num" id="stat-reports">—</div>
+        <div class="lbl">Pending reports</div>
+      </div>
+    </div>
+
+    <!-- Flagged profiles -->
+    <div class="section-heading">
+      Flagged profiles
+      <button class="btn-link" onclick="loadDashboard()" style="font-size:12px">↻ Refresh</button>
+    </div>
+
+    <div id="profiles-container">
+      <div class="loading-state"><span class="spinner"></span></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── Firebase SDK ──────────────────────────────────────────────────────────── -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<script>
+// ── Firebase config ──────────────────────────────────────────────────────────
+// Get this from: Firebase Console → Project Settings → Your apps → Web app.
+// If you haven't added a web app yet, click "Add app" → Web, register it,
+// then paste the full config object here.
+const firebaseConfig = {
+  apiKey:            "AIzaSyBmyUsbKyWOAQPrqjDLcEgdajqQFYaGs6Y",
+  authDomain:        "solidten-prod.firebaseapp.com",
+  projectId:         "solidten-prod",
+  storageBucket:     "solidten-prod.firebasestorage.app",
+  messagingSenderId: "199193989105",
+  appId:             "REPLACE_WITH_WEB_APP_ID",   // ← from Firebase Console
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+// ── Auth state ───────────────────────────────────────────────────────────────
+auth.onAuthStateChanged(async (user) => {
+  if (!user) {
+    showScreen('login');
+    return;
+  }
+
+  // Force-refresh the token so custom claims are up-to-date
+  const token = await user.getIdTokenResult(true);
+
+  if (!token.claims.admin) {
+    await auth.signOut();
+    showError('This account does not have admin access.');
+    return;
+  }
+
+  showScreen('dashboard');
+  document.getElementById('topbar-email').textContent = user.email;
+  loadDashboard();
+});
+
+// ── Login ────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const email    = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const btn      = document.getElementById('login-btn');
+
+  showError('');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+
+  try {
+    await auth.signInWithEmailAndPassword(email, password);
+    // onAuthStateChanged handles the rest
+  } catch (e) {
+    showError('Invalid email or password.');
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+  }
+}
+
+async function doSignOut() {
+  await auth.signOut();
+}
+
+document.getElementById('password').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doLogin();
+});
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  const container = document.getElementById('profiles-container');
+  container.innerHTML = '<div class="loading-state"><span class="spinner"></span></div>';
+
+  try {
+    // Query hidden and suspended profiles
+    const [hiddenSnap, suspendedSnap] = await Promise.all([
+      db.collection('users').where('profileHidden', '==', true).get(),
+      db.collection('users').where('suspended',     '==', true).get(),
+    ]);
+
+    // Merge and deduplicate by UID
+    const profileMap = new Map();
+    for (const doc of [...hiddenSnap.docs, ...suspendedSnap.docs]) {
+      if (!profileMap.has(doc.id)) {
+        profileMap.set(doc.id, { uid: doc.id, ...doc.data() });
+      }
+    }
+
+    const profiles = [...profileMap.values()];
+
+    // Load pending reports for each profile
+    const withReports = await Promise.all(
+      profiles.map(async (p) => {
+        const reportsSnap = await db
+          .collection('users').doc(p.uid)
+          .collection('reports')
+          .where('status', '==', 'pending')
+          .orderBy('timestamp', 'desc')
+          .get();
+        return { ...p, reports: reportsSnap.docs.map(d => ({ id: d.id, ...d.data() })) };
+      })
+    );
+
+    // Update stats
+    const totalReports = withReports.reduce((n, p) => n + p.reports.length, 0);
+    document.getElementById('stat-hidden').textContent    = hiddenSnap.size;
+    document.getElementById('stat-suspended').textContent = suspendedSnap.size;
+    document.getElementById('stat-reports').textContent   = totalReports;
+
+    // Render
+    if (withReports.length === 0) {
+      container.innerHTML = `
+        <div class="empty">
+          <div class="empty-icon">✅</div>
+          <div class="empty-title">All clear</div>
+          <p>No flagged profiles right now.</p>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = '';
+    for (const profile of withReports) {
+      container.appendChild(buildProfileCard(profile));
+    }
+
+  } catch (err) {
+    container.innerHTML = `<div class="empty">
+      <div class="empty-icon">⚠️</div>
+      <div class="empty-title">Error loading data</div>
+      <p>${err.message}</p>
+    </div>`;
+    console.error(err);
+  }
+}
+
+// ── Build profile card ────────────────────────────────────────────────────────
+function buildProfileCard(profile) {
+  const card = document.createElement('div');
+  card.className = 'profile-card';
+  card.id = `card-${profile.uid}`;
+
+  const photoUrl  = (profile.photoUrls || [])[0] || null;
+  const photoHtml = photoUrl
+    ? `<img class="profile-photo" src="${photoUrl}" alt="" />`
+    : `<div class="profile-photo placeholder">${(profile.name || '?')[0].toUpperCase()}</div>`;
+
+  const statusBadges = [
+    profile.suspended     ? `<span class="badge badge-red">Suspended</span>`   : '',
+    profile.profileHidden ? `<span class="badge badge-amber">Hidden</span>`    : '',
+    profile.banned        ? `<span class="badge badge-red">Banned</span>`      : '',
+  ].filter(Boolean).join('');
+
+  const reportCount = profile.reports.length;
+  const reportCountBadge = reportCount > 0
+    ? `<span class="badge badge-purple">${reportCount} pending report${reportCount !== 1 ? 's' : ''}</span>`
+    : `<span class="badge badge-green">No pending reports</span>`;
+
+  card.innerHTML = `
+    <div class="profile-card-top">
+      ${photoHtml}
+      <div class="profile-info">
+        <div class="profile-name">
+          ${escHtml(profile.name || 'Unknown')}
+          ${profile.age ? `<span style="font-weight:400;color:var(--muted)">${profile.age}</span>` : ''}
+          ${statusBadges}
+        </div>
+        <div class="profile-uid">${profile.uid}</div>
+        <div class="profile-meta">
+          ${reportCountBadge}
+          ${profile.city ? `<span style="color:var(--muted);font-size:12px">📍 ${escHtml(profile.city)}</span>` : ''}
+        </div>
+        <div class="profile-actions">
+          <button class="btn-action btn-restore" onclick="takeAction('${profile.uid}', 'restore')">↩ Restore</button>
+          <button class="btn-action btn-confirm" onclick="takeAction('${profile.uid}', 'confirm')">✓ Keep Hidden</button>
+          <button class="btn-action btn-ban"     onclick="takeAction('${profile.uid}', 'ban')">⛔ Permanent Ban</button>
+        </div>
+      </div>
+    </div>
+    ${buildReportsSection(profile)}
+  `;
+
+  return card;
+}
+
+function buildReportsSection(profile) {
+  if (profile.reports.length === 0) return '';
+
+  const rows = profile.reports.map(r => {
+    const date = r.timestamp?.toDate?.() || new Date();
+    const timeStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return `
+      <div class="report-row">
+        <div>
+          <div class="report-category">${escHtml(r.category || 'Other')}</div>
+          ${r.subCategory ? `<div class="report-sub">${escHtml(r.subCategory)}</div>` : ''}
+        </div>
+        <div style="color:var(--muted);font-size:12px">Reporter: <code>${r.reporterId || '—'}</code></div>
+        <div class="report-time">${timeStr}</div>
+      </div>`;
+  }).join('');
+
+  return `
+    <button class="reports-toggle" onclick="toggleReports(this)">
+      ▶ Show ${profile.reports.length} report${profile.reports.length !== 1 ? 's' : ''}
+    </button>
+    <div class="reports-list">${rows}</div>
+  `;
+}
+
+function toggleReports(btn) {
+  const list = btn.nextElementSibling;
+  const open = list.style.display === 'block';
+  list.style.display = open ? 'none' : 'block';
+  btn.textContent = (open ? '▶' : '▼') + btn.textContent.slice(1);
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────────
+async function takeAction(uid, action) {
+  const card = document.getElementById(`card-${uid}`);
+  const btns = card.querySelectorAll('.btn-action');
+  btns.forEach(b => b.disabled = true);
+
+  const labels = { restore: 'Restoring…', confirm: 'Confirming…', ban: 'Banning…' };
+  const clickedBtn = [...btns].find(b => b.onclick?.toString().includes(`'${action}'`));
+  if (clickedBtn) clickedBtn.textContent = labels[action];
+
+  try {
+    const userRef   = db.collection('users').doc(uid);
+    const reportRef = userRef.collection('reports');
+
+    // Update user document
+    const userUpdates = {};
+    let reportStatus = '';
+
+    if (action === 'restore') {
+      userUpdates.profileHidden = false;
+      userUpdates.suspended     = false;
+      reportStatus = 'reviewed_restored';
+    } else if (action === 'confirm') {
+      userUpdates.profileHidden = true;
+      reportStatus = 'reviewed_confirmed';
+    } else if (action === 'ban') {
+      userUpdates.banned        = true;
+      userUpdates.suspended     = true;
+      userUpdates.profileHidden = true;
+      reportStatus = 'reviewed_banned';
+    }
+
+    await userRef.update(userUpdates);
+
+    // Update all pending reports for this user
+    const pendingSnap = await reportRef.where('status', '==', 'pending').get();
+    const batch = db.batch();
+    pendingSnap.docs.forEach(d => batch.update(d.ref, { status: reportStatus, reviewedAt: firebase.firestore.FieldValue.serverTimestamp() }));
+    await batch.commit();
+
+    // Remove card with a fade
+    card.style.transition = 'opacity .3s';
+    card.style.opacity = '0';
+    setTimeout(() => { card.remove(); updateStats(); }, 320);
+
+  } catch (err) {
+    alert('Error: ' + err.message);
+    btns.forEach(b => b.disabled = false);
+    console.error(err);
+  }
+}
+
+function updateStats() {
+  const remaining = document.querySelectorAll('.profile-card').length;
+  if (remaining === 0) {
+    document.getElementById('profiles-container').innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">✅</div>
+        <div class="empty-title">All clear</div>
+        <p>No flagged profiles right now.</p>
+      </div>`;
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function showScreen(name) {
+  document.getElementById('login-screen').style.display = name === 'login' ? 'flex' : 'none';
+  document.getElementById('dashboard').style.display    = name === 'dashboard' ? 'block' : 'none';
+}
+
+function showError(msg) {
+  document.getElementById('login-error').textContent = msg;
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>
