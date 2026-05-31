@@ -1182,9 +1182,17 @@ async function loadArticles() {
     const snap = await db.collection('docs').orderBy('order', 'asc').get();
     allArticles = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // Seed default articles if none exist
+    // Seed default articles if collection is empty
     if (allArticles.length === 0) {
       await seedDefaultArticles();
+      const snap2 = await db.collection('docs').orderBy('order', 'asc').get();
+      allArticles = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
+    }
+
+    // Ensure the Bot System article exists (added after initial seed; uses a
+    // fixed doc ID so this is idempotent and will never create duplicates).
+    if (!allArticles.some(a => a.id === 'seed-bots' || a.title === 'Bot System')) {
+      await ensureBotsArticle();
       const snap2 = await db.collection('docs').orderBy('order', 'asc').get();
       allArticles = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
     }
@@ -1788,6 +1796,109 @@ This sets \`{ admin: true }\` on the target account. The script must be run with
 
   await batch.commit();
   console.log('[docs] Seeded default articles.');
+}
+
+// ── Bot System article (added after initial seed) ─────────────────────────────
+async function ensureBotsArticle() {
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+  await db.collection('docs').doc('seed-bots').set({
+    title:   'Bot System',
+    order:   10,
+    content: `## What Are Bots?
+
+Bots are synthetic user profiles that exist in the app to solve the cold-start problem. Without them, a new user would join and see no one to rate, and receive no ratings on their own profile.
+
+**30 bots** are defined in \`bots/run_bots.js\`. Each has a realistic profile (name, age, gender, city, photos) and a fixed Firestore document ID (\`bot_01\` through \`bot_30\`). Bots are identified internally by the \`isBot: true\` field on their Firestore document — real user documents never have this field.
+
+## Bot Profiles
+
+Bots are spread across 30 cities worldwide and cover all genders:
+
+- **10 Men** — e.g. Alex (New York), Taylor (LA), Drew (Milan), Logan (Oslo)
+- **17 Women** — e.g. Sam (London), Morgan (Sydney), Marlowe (Dubai), Blake (São Paulo)
+- **3 Non-binary** — Jordan (Toronto), Sage (Auckland)
+
+Ages range from **21–33**.
+
+## Rating Algorithm
+
+When bots rate a real user's profile, the score uses a **weighted distribution skewed toward 5–8**, mimicking realistic human behaviour rather than a flat random distribution.
+
+| Score | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Weight | 2 | 3 | 5 | 8 | 13 | 20 | 22 | 16 | 8 | 3 |
+
+Each of the 30 bots gives one independent rating per real user, resulting in up to **30 ratings per profile**.
+
+Ratings are written to \`users/{uid}/receivedRatings/{botId}\` with \`isBot: true\` so they can be distinguished from real ratings.
+
+## Bot Photos
+
+Bots use two photo sources:
+
+- **randomuser.me** — placeholder portraits for 23 bots. External URLs served directly; no storage cost.
+- **Firebase Storage** — real AI-generated photos at \`gs://solidten-prod.firebasestorage.app/bot_photos/\`. Currently 7 bots have real photos (Girl A–E, Guy A–B). These are made publicly readable (no auth required) so they load without a signed URL.
+
+### Uploading Real Photos for Bots
+
+1. Place image files in \`app/assets/images/profiles/\`
+2. Add entries to \`BOT_PHOTO_MAP\` in \`bots/upload_bot_photos.js\`
+3. Run from the \`bots/\` directory:
+
+\`\`\`
+node upload_bot_photos.js
+\`\`\`
+
+This uploads to Firebase Storage, makes URLs public, and patches the bot's Firestore \`photoUrls\` array automatically.
+
+## Setup Requirements
+
+The bot scripts require a **Firebase service account key**:
+
+1. Firebase Console → Project Settings → Service Accounts → **Generate new private key**
+2. Save the downloaded file as \`bots/serviceAccountKey.json\`
+3. First time only: run \`npm install\` from the \`bots/\` directory
+
+> ⚠️ Never commit \`serviceAccountKey.json\` to version control — it grants full admin access to the project.
+
+## Quick Reference — All Three Commands
+
+| Command | What it does |
+|---|---|
+| \`node run_bots.js\` | Set up bot profiles + bots rate your profile |
+| \`node run_bots.js --reset\` | Bots re-rate your profile from scratch |
+| \`node run_bots.js --reset-queue\` | You can rate all bots again |
+
+## Detailed Behaviour
+
+### \`node run_bots.js\`
+
+- Upserts all 30 bot profiles in Firestore using \`merge: true\` (safe to re-run — never overwrites existing \`receivedRatings\`)
+- Each bot rates every real user profile it hasn't rated yet
+- Already-rated profiles are skipped — running twice doesn't duplicate ratings
+
+### \`node run_bots.js --reset\`
+
+- Deletes all existing bot ratings from real users' \`receivedRatings\` subcollections (identified by \`isBot: true\`)
+- Then re-rates every real profile from scratch with fresh random scores
+- Use this when you want to change the rating algorithm or give a specific profile a clean slate
+
+### \`node run_bots.js --reset-queue\`
+
+- Deletes bot entries from each real user's \`givenRatings\` subcollection — bots reappear in their rating queue
+- Also clears any user-given ratings from bot \`receivedRatings\` subcollections (keeps bot profiles clean)
+- Use this when testing the rating flow, or when new bots have been added and you want to rate them
+
+## How Bots Are Excluded from the Rating Queue
+
+Real users **never see bots in their rating queue**. The \`getProfilesToRate()\` function in the Flutter app filters out profiles where \`isBot == true\`. Bots appear in the queue only when \`--reset-queue\` is used (for development/testing).
+
+Bots **do** appear in the admin panel's Reporting section if they are somehow flagged — this should not happen in normal operation since bots are not reportable by other bots.
+`,
+    createdAt: now,
+    updatedAt: now,
+  });
+  console.log('[docs] Bot System article created.');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
