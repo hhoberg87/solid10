@@ -1189,10 +1189,10 @@ async function loadArticles() {
       allArticles = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
     }
 
-    // Ensure the Bot System article exists (added after initial seed; uses a
-    // fixed doc ID so this is idempotent and will never create duplicates).
-    if (!allArticles.some(a => a.id === 'seed-bots' || a.title === 'Bot System')) {
-      await ensureBotsArticle();
+    // Always overwrite seeded articles so content stays in sync with the code.
+    await ensureBotsArticle();
+    await ensureTestUsersArticle();
+    {
       const snap2 = await db.collection('docs').orderBy('order', 'asc').get();
       allArticles = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
     }
@@ -1804,101 +1804,137 @@ async function ensureBotsArticle() {
   await db.collection('docs').doc('seed-bots').set({
     title:   'Bot System',
     order:   10,
-    content: `## What Are Bots?
+    content: `## Current Status
 
-Bots are synthetic user profiles that exist in the app to solve the cold-start problem. Without them, a new user would join and see no one to rate, and receive no ratings on their own profile.
+> ⚠️ **Bots are currently DEACTIVATED.** The kill switch \`BOTS_ENABLED = false\` is set in \`bots/run_bots.js\`. Bot Firestore profiles have been removed via \`cleanup_bots.js\`. The ranking is populated by **7 real test users** instead — see the Test Users article.
 
-**30 bots** are defined in \`bots/run_bots.js\`. Each has a realistic profile (name, age, gender, city, photos) and a fixed Firestore document ID (\`bot_01\` through \`bot_30\`). Bots are identified internally by the \`isBot: true\` field on their Firestore document — real user documents never have this field.
+## What Are Bots?
 
-## Bot Profiles
+Bots are synthetic user profiles that solve the cold-start problem. Without them, new users would join and see no one to rate and receive no ratings on their own profile.
 
-Bots are spread across 30 cities worldwide and cover all genders:
+There are **1,000 bots** in total:
 
-- **10 Men** — e.g. Alex (New York), Taylor (LA), Drew (Milan), Logan (Oslo)
-- **17 Women** — e.g. Sam (London), Morgan (Sydney), Marlowe (Dubai), Blake (São Paulo)
-- **3 Non-binary** — Jordan (Toronto), Sage (Auckland)
+- **30 hand-crafted** profiles (\`bot_01\` – \`bot_30\`) with curated names, cities, genders, and photos
+- **970 auto-generated** profiles (\`bot_31\` – \`bot_1000\`) with procedurally assigned names and locations
 
-Ages range from **21–33**.
+All bots are identified by the \`isBot: true\` field on their Firestore document. Real user documents never have this field.
 
-## Rating Algorithm
+## Kill Switch
 
-When bots rate a real user's profile, the score uses a **weighted distribution skewed toward 5–8**, mimicking realistic human behaviour rather than a flat random distribution.
+At the top of \`bots/run_bots.js\`:
 
-| Score | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
-|---|---|---|---|---|---|---|---|---|---|---|
-| Weight | 2 | 3 | 5 | 8 | 13 | 20 | 22 | 16 | 8 | 3 |
+\`\`\`js
+const BOTS_ENABLED = false;
+\`\`\`
 
-Each of the 30 bots gives one independent rating per real user, resulting in up to **30 ratings per profile**.
+Set to \`true\` and re-run \`node run_bots.js\` to reactivate. Set to \`false\` (default) and the script exits immediately without making any changes.
 
-Ratings are written to \`users/{uid}/receivedRatings/{botId}\` with \`isBot: true\` so they can be distinguished from real ratings.
+## Synthetic Ratings
+
+Each bot has a pre-seeded \`averageRating\`, \`ratingCount\`, and \`ratingSum\` written directly to their Firestore profile at setup time. This makes them appear in the global ranking immediately.
+
+Ratings are distributed in the **5.2 – 9.0** range using a deterministic formula — approximately 78% of bots have an \`averageRating ≥ 6.0\`, matching the ranking query threshold.
 
 ## Bot Photos
 
-Bots use two photo sources:
-
-- **randomuser.me** — placeholder portraits for 23 bots. External URLs served directly; no storage cost.
-- **Firebase Storage** — real AI-generated photos at \`gs://solidten-prod.firebasestorage.app/bot_photos/\`. Currently 7 bots have real photos (Girl A–E, Guy A–B). These are made publicly readable (no auth required) so they load without a signed URL.
-
-### Uploading Real Photos for Bots
-
-1. Place image files in \`app/assets/images/profiles/\`
-2. Add entries to \`BOT_PHOTO_MAP\` in \`bots/upload_bot_photos.js\`
-3. Run from the \`bots/\` directory:
-
-\`\`\`
-node upload_bot_photos.js
-\`\`\`
-
-This uploads to Firebase Storage, makes URLs public, and patches the bot's Firestore \`photoUrls\` array automatically.
+- **30 hand-crafted bots** — AI-generated photos uploaded to Firebase Storage at \`bot_photos/{botId}/\`. Permanent download URLs stored in the \`photoUrls\` array on the Firestore profile.
+- **970 generated bots** — use randomuser.me portrait URLs. No storage cost.
 
 ## Setup Requirements
 
-The bot scripts require a **Firebase service account key**:
+All bot scripts require a **Firebase service account key**:
 
 1. Firebase Console → Project Settings → Service Accounts → **Generate new private key**
-2. Save the downloaded file as \`bots/serviceAccountKey.json\`
-3. First time only: run \`npm install\` from the \`bots/\` directory
+2. Save the file as \`bots/serviceAccountKey.json\`
+3. First time only: \`npm install\` from the \`bots/\` directory
 
-> ⚠️ Never commit \`serviceAccountKey.json\` to version control — it grants full admin access to the project.
+> ⚠️ Never commit \`serviceAccountKey.json\` — it grants full admin access to the project.
 
-## Quick Reference — All Three Commands
+## Quick Reference
 
 | Command | What it does |
 |---|---|
-| \`node run_bots.js\` | Set up bot profiles + bots rate your profile |
-| \`node run_bots.js --reset\` | Bots re-rate your profile from scratch |
-| \`node run_bots.js --reset-queue\` | You can rate all bots again |
+| \`node run_bots.js\` | Create/update all 1,000 bot profiles in Firestore (requires \`BOTS_ENABLED = true\`) |
+| \`node cleanup_bots.js\` | Remove all bot Firestore profiles and their ratings from real users; recompute real user stats |
+| \`node cleanup_bots.js --auth\` | Same as above, also deletes bot Firebase Auth accounts |
+| \`node setup_real_users.js\` | Create the 7 real test user accounts (Auth + Storage + Firestore) |
+| \`node setup_real_users.js --delete\` | Delete all 7 real test user accounts |
 
-## Detailed Behaviour
+## How Bots Are Hidden from Users
 
-### \`node run_bots.js\`
+Real users **never see bots in their rating queue**. The \`getProfilesToRate()\` function in the Flutter app filters out any profile where \`isBot == true\`.
 
-- Upserts all 30 bot profiles in Firestore using \`merge: true\` (safe to re-run — never overwrites existing \`receivedRatings\`)
-- Each bot rates every real user profile it hasn't rated yet
-- Already-rated profiles are skipped — running twice doesn't duplicate ratings
-
-### \`node run_bots.js --reset\`
-
-- Deletes all existing bot ratings from real users' \`receivedRatings\` subcollections (identified by \`isBot: true\`)
-- Then re-rates every real profile from scratch with fresh random scores
-- Use this when you want to change the rating algorithm or give a specific profile a clean slate
-
-### \`node run_bots.js --reset-queue\`
-
-- Deletes bot entries from each real user's \`givenRatings\` subcollection — bots reappear in their rating queue
-- Also clears any user-given ratings from bot \`receivedRatings\` subcollections (keeps bot profiles clean)
-- Use this when testing the rating flow, or when new bots have been added and you want to rate them
-
-## How Bots Are Excluded from the Rating Queue
-
-Real users **never see bots in their rating queue**. The \`getProfilesToRate()\` function in the Flutter app filters out profiles where \`isBot == true\`. Bots appear in the queue only when \`--reset-queue\` is used (for development/testing).
-
-Bots **do** appear in the admin panel's Reporting section if they are somehow flagged — this should not happen in normal operation since bots are not reportable by other bots.
+Bots **do** appear in the global ranking (if they have \`averageRating ≥ 6.0\`) — this is intentional, so the leaderboard looks populated.
 `,
     createdAt: now,
     updatedAt: now,
   });
-  console.log('[docs] Bot System article created.');
+  console.log('[docs] Bot System article synced.');
+}
+
+// ── Test Users article ────────────────────────────────────────────────────────
+async function ensureTestUsersArticle() {
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+  await db.collection('docs').doc('seed-test-users').set({
+    title:   'Test Users',
+    order:   11,
+    content: `## Overview
+
+Seven real Firebase accounts exist for testing the app during the Google Play closed testing period. These accounts use genuine-looking profile photos (not AI-generated) so the app feels realistic to paid testers.
+
+## Shared Password
+
+\`\`\`
+Tester2025!
+\`\`\`
+
+All 7 accounts use this password.
+
+## Accounts
+
+| Name | Email | Gender | Age | City |
+|---|---|---|---|---|
+| Sophia | sophia.hartmann@gmail.com | Woman | 22 | Berlin |
+| Emma | emma.sullivan@gmail.com | Woman | 21 | New York |
+| Mia | mia.dawson@gmail.com | Woman | 23 | Los Angeles |
+| Ava | ava.reynolds@gmail.com | Woman | 20 | Chicago |
+| Lena | lena.fischer@gmail.com | Woman | 24 | Frankfurt |
+| Lucas | lucas.bauer@gmail.com | Man | 25 | Berlin |
+| Max | max.klein@gmail.com | Man | 23 | Berlin |
+
+## Profile Settings
+
+All accounts are configured with:
+
+- \`profileComplete: true\`
+- \`isBot: false\`
+- \`datingEnabled: true\`
+- \`receivingMode: global\`
+- \`givingMode: global\`
+- Photos uploaded to Firebase Storage at \`real_user_photos/{slug}/\`
+
+## Sign-In Steps
+
+1. Open the Solidten app
+2. Tap **Sign In** (not Sign Up)
+3. Enter the email and the shared password above
+4. The profile is already complete — you land directly on the main screen
+
+## Management Scripts
+
+Run from the \`bots/\` directory (requires \`serviceAccountKey.json\`):
+
+| Command | What it does |
+|---|---|
+| \`node setup_real_users.js\` | Create all 7 accounts (Auth + Storage + Firestore). Safe to re-run. |
+| \`node setup_real_users.js --delete\` | Delete all 7 accounts from Auth and Firestore |
+
+> ℹ️ These accounts are intentionally **not** bots — they appear in the rating queue and ranking just like any real user.
+`,
+    createdAt: now,
+    updatedAt: now,
+  });
+  console.log('[docs] Test Users article synced.');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
