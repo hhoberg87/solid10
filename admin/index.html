@@ -1192,6 +1192,11 @@ async function loadArticles() {
     // Always overwrite seeded articles so content stays in sync with the code.
     await ensureBotsArticle();
     await ensureTestUsersArticle();
+    await ensureCloudFunctionsArticle();
+    await ensureFirestoreModelArticle();
+    await ensureSecurityRulesArticle();
+    await ensureRatingMatchingArticle();
+    await ensureChangelogArticle();
     {
       const snap2 = await db.collection('docs').orderBy('order', 'asc').get();
       allArticles = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1935,6 +1940,415 @@ Run from the \`bots/\` directory (requires \`serviceAccountKey.json\`):
     updatedAt: now,
   });
   console.log('[docs] Test Users article synced.');
+}
+
+// ── Upsert helper (keeps technical articles in sync with the codebase) ────────
+// Checks the canonical seed-ID doc first; falls back to a title-match for
+// articles that were originally seeded with a random Firestore ID.
+async function upsertNamedArticle(seedId, title, order, content) {
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+  const seedRef = db.collection('docs').doc(seedId);
+  const seedDoc = await seedRef.get();
+  if (seedDoc.exists) {
+    await seedRef.update({ title, content, updatedAt: now });
+    return;
+  }
+  const snap = await db.collection('docs').where('title', '==', title).limit(1).get();
+  if (!snap.empty) {
+    await snap.docs[0].ref.update({ content, updatedAt: now });
+    return;
+  }
+  await seedRef.set({ title, content, order, createdAt: now, updatedAt: now });
+  console.log('[docs] Created: ' + title);
+}
+
+// ── Cloud Functions article ────────────────────────────────────────────────────
+async function ensureCloudFunctionsArticle() {
+  await upsertNamedArticle('seed-cloud-functions', 'Cloud Functions Overview', 3, `## Four Firebase Cloud Functions v2 Are Deployed
+
+### onReportCreated (us-central1)
+
+**Trigger:** Firestore document created at \`users/{reportedUid}/reports/{reportId}\`
+
+Counts distinct reporters for the reported user. Applies \`profileHidden\` and/or \`suspended\` flags. Disables Firebase Auth at 5+ reporters. Sends a moderation email on every new report regardless of outcome.
+
+---
+
+### onUserBanned (us-central1)
+
+**Trigger:** Firestore document updated at \`users/{uid}\` when \`banned\` transitions \`false → true\`
+
+Called when an admin clicks "Permanent Ban" in the admin panel. Permanently disables the Firebase Auth account.
+
+---
+
+### onPhotoUploaded (us-east1)
+
+**Trigger:** Firebase Storage object created in \`solidten-prod.firebasestorage.app\`
+
+Only processes files matching \`users/{uid}/photos/{filename}\` and of image content type. Runs Google Cloud Vision SafeSearch. Deletes and flags photos rated LIKELY or VERY_LIKELY for adult content, violence, or racy content.
+
+> **Note:** Runs in us-east1 because Storage triggers must match the bucket's region. The other functions run in us-central1.
+
+---
+
+### generateThumbnail (us-east1)
+
+**Trigger:** Firebase Storage object created in \`solidten-prod.firebasestorage.app\`
+
+Only processes files matching \`users/{uid}/photos/{filename}\` — the same upload event as \`onPhotoUploaded\`. Both functions fire for every new photo.
+
+**Steps:**
+1. Downloads the original to \`/tmp/\`
+2. Resizes to **400 px wide, JPEG quality 80** using the \`sharp\` npm package
+3. Uploads the thumbnail to \`users/{uid}/thumbs/{filename}\` — a *different path* than the original, preventing a recursive trigger loop
+4. Attaches a UUID as \`firebaseStorageDownloadTokens\` metadata to create a permanent download URL
+5. Writes the thumb URL to Firestore: \`users/{uid}.thumbs.{filename}\`
+
+The Flutter app uses thumbnail URLs for 42 px ranking row avatars and 52 px messaging list avatars, reducing those images from up to 4 MB to ~15 KB. Full-resolution URLs are kept for the rating screen and profile sheet.
+
+---
+
+## Secrets
+
+The Gmail App Password is stored in **Firebase Secret Manager** as \`GMAIL_APP_PASSWORD\`. Accessed at runtime via \`defineSecret('GMAIL_APP_PASSWORD')\`.
+
+## Runtime
+
+All functions run on **Node.js 20 (2nd Gen Cloud Run)**. Node.js 20 is deprecated as of April 2026 — upgrade to Node.js 22 before October 2026.
+
+## Dependencies (\`functions/package.json\`)
+
+| Package | Used by |
+|---|---|
+| \`firebase-admin\` | All functions |
+| \`firebase-functions\` | All functions |
+| \`@google-cloud/vision\` | onPhotoUploaded |
+| \`nodemailer\` | onReportCreated |
+| \`sharp\` | generateThumbnail |
+
+## Deploy
+
+\`\`\`
+firebase deploy --only functions
+\`\`\`
+`);
+  console.log('[docs] Cloud Functions article synced.');
+}
+
+// ── Firestore Data Model article ──────────────────────────────────────────────
+async function ensureFirestoreModelArticle() {
+  await upsertNamedArticle('seed-firestore-model', 'Firestore Data Model', 5, `## Collections
+
+### \`users/{uid}\`
+
+The main user document, created when onboarding is complete.
+
+| Field | Type | Description |
+|---|---|---|
+| \`name\` | string | Display name (set during onboarding, read-only) |
+| \`dateOfBirth\` | string | ISO 8601 date string |
+| \`gender\` | string | Man / Woman / Non-binary / Prefer not to say / Other |
+| \`interestedIn\` | string[] | Rating preferences: Man, Woman, Non-binary, All |
+| \`country\` | string | Country name |
+| \`countryCode\` | string | ISO 2-letter code (e.g. SE) |
+| \`city\` | string | City name |
+| \`latitude\` | number? | GPS latitude (used for local-mode radius filtering) |
+| \`longitude\` | number? | GPS longitude (used for local-mode radius filtering) |
+| \`photoUrls\` | string[] | Ordered list of Firebase Storage full-resolution download URLs |
+| \`thumbs\` | map | Thumbnail URLs keyed by filename, e.g. \`{"photo.jpg": "https://..."}\`. Written by the generateThumbnail Cloud Function. |
+| \`profileComplete\` | bool | Set to \`true\` when onboarding finishes |
+| \`profileHidden\` | bool | Hides profile from rating queue (set by moderation) |
+| \`suspended\` | bool | Account suspended (set by moderation) |
+| \`banned\` | bool | Permanent ban (set by admin) |
+| \`isBot\` | bool | Only present on bot profiles; real user docs never have this field |
+| \`datingEnabled\` | bool | Whether the user participates in matching. Defaults to true. |
+| \`ratingPublic\` | bool | Whether the user's average score appears on their profile card |
+| \`ratingSum\` | number | Running total of all received scores |
+| \`ratingCount\` | number | Number of ratings received |
+| \`averageRating\` | number | \`ratingSum / ratingCount\` — denormalised for the global ranking query |
+| \`receivingMode\` | string | Who can rate this user: \`global\` / \`local\` / \`hidden_in_country\` / \`no_one\` |
+| \`receivingRadiusMiles\` | number | Radius for \`local\` receiving mode |
+| \`givingMode\` | string | Which profiles appear in this user's queue: \`global\` / \`local\` |
+| \`givingRadiusMiles\` | number | Radius for \`local\` giving mode |
+| \`createdAt\` | timestamp | Account creation time |
+
+---
+
+### \`users/{uid}/receivedRatings/{ratingId}\`
+
+Ratings given **to** this user. Doc ID is the rater's UID, enforcing one rating per pair.
+
+| Field | Type | Description |
+|---|---|---|
+| \`score\` | number | Rating score 1–10 |
+| \`raterId\` | string | UID of the rater |
+| \`ratedId\` | string | UID of the rated user |
+| \`raterIsAnonymous\` | bool | True if rater had no complete profile at the time |
+| \`raterGender\` | string | Rater's gender (if not anonymous) |
+| \`raterAge\` | number? | Rater's age at submission (if not anonymous) |
+| \`raterCity\` | string | Rater's city (if not anonymous) |
+| \`raterCountry\` | string | Rater's country (if not anonymous) |
+| \`raterCountryCode\` | string | Rater's ISO country code (if not anonymous) |
+| \`isBot\` | bool | True if submitted by a bot |
+| \`timestamp\` | timestamp | When the rating was submitted |
+
+---
+
+### \`users/{uid}/givenRatings/{ratingId}\`
+
+Ratings this user **gave** to others. Doc ID is the rated user's UID. Used to prevent re-rating and to build mutual-rating match lists. Same fields as \`receivedRatings\`.
+
+---
+
+### \`users/{uid}/reports/{reportId}\`
+
+Filed by other users via the report modal.
+
+| Field | Type | Description |
+|---|---|---|
+| \`reporterId\` | string | UID of the reporter |
+| \`category\` | string | Top-level report category |
+| \`subCategory\` | string? | Optional sub-category |
+| \`status\` | string | \`pending\` / \`reviewed_restored\` / \`reviewed_confirmed\` / \`reviewed_banned\` |
+| \`timestamp\` | timestamp | When the report was filed |
+| \`reviewedAt\` | timestamp? | When an admin reviewed it |
+
+---
+
+### \`users/{uid}/unmatched/{otherUid}\`
+
+Written when a user unmatchs someone. Both users get an entry. The messaging screen filters these out.
+
+| Field | Type | Description |
+|---|---|---|
+| \`unmatchedBy\` | string | UID of who initiated the unmatch |
+| \`timestamp\` | timestamp | When the unmatch occurred |
+
+---
+
+### \`conversations/{conversationId}\`
+
+Chat metadata. Doc ID = the two UIDs sorted alphabetically and joined with \`_\` (e.g. \`aaa_bbb\`).
+
+| Field | Type | Description |
+|---|---|---|
+| \`participants\` | string[] | Both UIDs — used for the Firestore \`arrayContains\` stream query |
+| \`lastMessage\` | string | Last message text (for list preview) |
+| \`lastMessageAt\` | timestamp | Used to sort conversations by recency |
+| \`lastSenderId\` | string | UID of who sent the last message |
+| \`readAt\` | map | \`{uid: timestamp}\` — last time each participant read the conversation |
+
+---
+
+### \`conversations/{conversationId}/messages/{messageId}\`
+
+| Field | Type | Description |
+|---|---|---|
+| \`senderId\` | string | UID of the sender |
+| \`text\` | string | Message body |
+| \`timestamp\` | timestamp | Server timestamp |
+| \`type\` | string? | \`"system"\` for auto-generated messages (e.g. unmatch notice) |
+
+---
+
+### \`docs/{docId}\`
+
+Admin documentation articles (this panel).
+
+| Field | Type | Description |
+|---|---|---|
+| \`title\` | string | Article title |
+| \`content\` | string | Body in Markdown |
+| \`order\` | number | Sort order in sidebar |
+| \`createdAt\` | timestamp | Creation time |
+| \`updatedAt\` | timestamp | Last edit time |
+`);
+  console.log('[docs] Firestore Data Model article synced.');
+}
+
+// ── Security Rules article ────────────────────────────────────────────────────
+async function ensureSecurityRulesArticle() {
+  await upsertNamedArticle('seed-security-rules', 'Security Rules', 6, `## Firestore Security Rules
+
+Defined in \`firestore.rules\` at the project root. Deployed with:
+
+\`\`\`
+firebase deploy --only firestore
+\`\`\`
+
+### Helper Functions
+
+\`\`\`javascript
+function isSignedIn() { return request.auth != null; }
+function isAdmin()    { return isSignedIn() && request.auth.token.admin == true; }
+function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+\`\`\`
+
+### Access Rules
+
+| Collection | Read | Write |
+|---|---|---|
+| \`users/{uid}\` | Any signed-in user | Owner or admin (full write) |
+| \`users/{uid}\` stats fields | — | Any signed-in user may update **only** \`ratingSum\`, \`ratingCount\`, \`averageRating\` (needed for the rating transaction) |
+| \`users/{uid}/receivedRatings\` | Owner, admin, **or the rater** (\`ratingId == request.auth.uid\`) | Any signed-in user — doc ID must be the rater's UID |
+| \`users/{uid}/givenRatings\` | Owner or admin | Owner or admin |
+| \`users/{uid}/reports\` | Admin only | Signed-in users (create-only; \`reporterId\` must be own UID; \`status\` must be \`"pending"\`) |
+| \`docs/{docId}\` | Admin only | Admin only |
+
+> **Why can the rater read their own receivedRatings entry?**
+> Rating submission uses a Firestore transaction that reads the existing \`receivedRatings\` doc first — to detect re-ratings and adjust the running total. Without this read permission the transaction is denied and rolled back silently. The rating appears to submit but is never written, and the queue resets on the next app restart because \`givenRatings\` was never updated. The rule \`ratingId == request.auth.uid\` restricts each user to reading only their own contribution to any profile.
+
+### Rating Stats Write Rule
+
+When a user submits a rating the transaction must update three denormalised fields (\`ratingSum\`, \`ratingCount\`, \`averageRating\`) on the **rated user's** document — which the rater does not own. A targeted rule allows only those three fields to be changed:
+
+\`\`\`javascript
+allow update: if isSignedIn()
+  && request.resource.data.diff(resource.data).affectedKeys()
+       .hasOnly(['ratingSum', 'ratingCount', 'averageRating']);
+\`\`\`
+
+### Collection Group
+
+\`/{path=**}/reports/{reportId}\` — admin-only read. Enables the admin panel to query across all users' report subcollections in a single request.
+
+---
+
+## Storage Rules
+
+Defined in \`storage.rules\`. Deployed with:
+
+\`\`\`
+firebase deploy --only storage
+\`\`\`
+
+| Path | Read | Write |
+|---|---|---|
+| \`users/{uid}/photos/{photo}\` | Any signed-in user | Owner only |
+| \`users/{uid}/thumbs/{photo}\` | Any signed-in user | Cloud Functions service account (Admin SDK) only |
+
+Thumbnails are written exclusively by the \`generateThumbnail\` Cloud Function using the Admin SDK, which bypasses client-facing Storage rules. Regular users cannot write to the \`thumbs/\` path.
+`);
+  console.log('[docs] Security Rules article synced.');
+}
+
+// ── Rating & Matching System article ─────────────────────────────────────────
+async function ensureRatingMatchingArticle() {
+  await upsertNamedArticle('seed-rating-matching', 'Rating & Matching System', 8, `## How the Rating Queue Is Built
+
+\`getProfilesToRate()\` in \`RatingService\` (Flutter) builds the queue shown to each user:
+
+1. Loads the current user's \`interestedIn\`, location, \`givingMode\`, and \`givingRadiusMiles\`.
+2. Fetches all users with \`profileComplete: true\`.
+3. Applies client-side filters (Firestore cannot combine all these conditions in one query):
+   - Excludes self and already-rated profiles (checks \`givenRatings\` subcollection)
+   - Excludes \`profileHidden\` and \`suspended\` profiles
+   - Gender filter based on \`interestedIn\` (bots bypass this — always shown)
+   - Giving-mode radius: excludes profiles outside the user's radius if \`givingMode == local\`
+   - Receiving-mode per profile: respects \`no_one\`, \`hidden_in_country\`, and \`local\` settings
+
+## Queue Refresh
+
+The queue loads once when the Rating screen first mounts. When the user switches away and returns, it **reloads only if the queue is empty** (all profiles rated, or the initial load failed). Mid-queue position is preserved if there are still profiles remaining.
+
+## Rating Submission (Firestore Transaction)
+
+Rating submission uses a **Firestore transaction** to atomically:
+
+1. Read \`users/{ratedUid}/receivedRatings/{raterUid}\` — detects re-ratings
+2. Read \`users/{ratedUid}\` — gets current \`ratingSum\` and \`ratingCount\`
+3. Write \`users/{ratedUid}/receivedRatings/{raterUid}\` — score and rater details
+4. Write \`users/{raterUid}/givenRatings/{ratedUid}\` — rater's history
+5. Update \`users/{ratedUid}\` — new \`ratingSum\`, \`ratingCount\`, \`averageRating\`
+
+Re-ratings are handled correctly: the old score is subtracted and the new score is added, keeping the running total accurate without changing the count.
+
+## Global Ranking
+
+Queries all users with \`averageRating ≥ 6.0\`, ordered descending. This is a \`FutureProvider\` that re-fetches every time the user navigates to the Rankings tab so updated averages are visible without a restart. Users with a score below 6.0 see a locked message instead of the leaderboard.
+
+## Matching
+
+Two users are matched when:
+- Each has rated the other, AND
+- Their mutual scores differ by at most 1 point
+
+Matches are computed in \`getMatches()\` by cross-referencing \`givenRatings\` and \`receivedRatings\`. Pairs in the \`unmatched\` subcollection are excluded. The match list is a \`FutureProvider\` that re-fetches every time the user navigates to the Messaging tab.
+
+## Conversation Sorting
+
+The messaging list is sorted by \`lastMessageAt\` from the live \`conversationsStreamProvider\` (a Firestore real-time listener). The sort re-evaluates whenever a message is sent or received — no manual refresh needed.
+
+## Image Caching & Thumbnails
+
+All profile photos use \`CachedNetworkImage\` for disk-persistent caching. Photos are stored on-device after the first download and served from cache on subsequent views.
+
+For small avatar contexts (42 px ranking rows, 52 px messaging list), the app uses thumbnail URLs from the \`thumbs\` Firestore map. Thumbnails are ~15 KB vs. up to 4 MB for originals. Full-resolution URLs are used for the profile sheet and rating screen.
+
+The \`thumbFor(photoUrl, thumbs)\` helper in \`rating_service.dart\` extracts the filename from a Firebase Storage URL and returns the matching thumbnail URL, falling back to the full URL if no thumbnail exists yet.
+`);
+  console.log('[docs] Rating & Matching article synced.');
+}
+
+// ── Changelog article ─────────────────────────────────────────────────────────
+async function ensureChangelogArticle() {
+  await upsertNamedArticle('seed-changelog', 'Changelog', 12, `## Android Release History
+
+Released to the **Google Play closed alpha** track.
+
+---
+
+## v1.0.0+6 — Current
+*Auth error messages · Tab refresh · Chat sort fix*
+
+### Auth Screens
+- Login now shows specific error messages mapped from Firebase error codes: wrong password, no account found, email already in use, invalid email, rate-limited, network error, disabled account
+- Registration shows specific messages including "An account with this email already exists. Please sign in instead."
+- Client-side blank-email validation before calling Firebase
+
+### Screen Refresh on Tab Switch
+- Switching to **Rankings** re-fetches the global leaderboard so updated average ratings are visible without a restart
+- Switching to **Messaging** re-fetches the match list so new matches appear immediately
+- Switching to **Rating** reloads the profile queue if it is empty (all profiles rated, or initial load failed); mid-queue position is preserved
+
+### Messaging List Sort
+- Conversations now correctly move to the top of the list when a message is sent
+- Fixed by adding \`ValueKey(conversationId)\` to list items so Flutter reconciles by identity rather than position when the sort order changes
+
+---
+
+## v1.0.0+5
+*Thumbnail URLs wired to small display contexts*
+
+- Ranking list avatars (42 px) and messaging list avatars (52 px) now use thumbnail URLs from the \`thumbs\` Firestore map instead of full-resolution photos, reducing those images from up to 4 MB to ~15 KB
+- Added \`thumbFor()\` helper: extracts filename from a Firebase Storage URL and looks it up in the \`thumbs\` map, falling back to the full URL if no thumbnail exists yet
+- \`RankingUser\` and \`MatchedUser\` Flutter models updated to carry the \`thumbs: Map<String, String>\` field
+
+---
+
+## v1.0.0+4
+*Rating queue fix · Crash fixes · Nav bar · Rankings tap · Image caching · Thumbnail Cloud Function*
+
+### Bug Fixes
+- **Rating queue reset on restart** — The rating transaction's read of \`receivedRatings\` was denied by the Firestore security rule, silently rolling back the whole transaction. \`givenRatings\` was never written, so every profile appeared unrated on the next launch. Fixed by allowing the rater to read their own entry (\`ratingId == request.auth.uid\`).
+- **Register screen flash** — After sign-up, the register screen briefly reappeared before onboarding. Fixed by skipping the \`profileComplete.isLoading\` guard in the GoRouter redirect when \`needsSetup\` is already true.
+- **Crash: ref after unmount** (register screen) — The catch block called \`ref.read()\` without checking \`mounted\` after an async gap. Fixed.
+- **Crash: Google Fonts network fetch** — On first launch without internet, the fonts package tried to fetch font files and crashed. Fixed with \`GoogleFonts.config.allowRuntimeFetching = false\`.
+- **Nav bar icon clipping on small screens** — Five items at fixed 80 px width totalled 400 px, overflowing on 375 px screens. Fixed by replacing fixed widths with \`Expanded\` widgets.
+
+### Features
+- **Rankings tap-to-profile** — Tapping any row in the global ranking now opens that user's profile sheet
+- **Image disk caching** — All profile photo widgets migrated from \`Image.network\` to \`CachedNetworkImage\` for persistent on-device caching
+- **Thumbnail Cloud Function** — New \`generateThumbnail\` function (us-east1) resizes uploaded photos to 400 px wide JPEG, stores them at \`users/{uid}/thumbs/{filename}\`, and writes the URL to Firestore at \`users/{uid}.thumbs.{filename}\`
+
+---
+
+## v1.0.0+3 and earlier
+
+Not documented here. See git history in the \`solid10-git\` repository.
+`);
+  console.log('[docs] Changelog article synced.');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
