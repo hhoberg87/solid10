@@ -1199,6 +1199,8 @@ async function loadArticles() {
     await ensureSecurityRulesArticle();
     await ensureRatingMatchingArticle();
     await ensureChangelogArticle();
+    await ensureFirebaseSetupArticle();
+    await ensureAdminPanelGuideArticle();
     {
       const snap2 = await db.collection('docs').orderBy('order', 'asc').get();
       allArticles = snap2.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1813,7 +1815,7 @@ async function ensureBotsArticle() {
     order:   10,
     content: `## Current Status
 
-> ⚠️ **Bots are currently DEACTIVATED.** The kill switch \`BOTS_ENABLED = false\` is set in \`bots/run_bots.js\`. Bot Firestore profiles have been removed via \`cleanup_bots.js\`. The ranking is populated by **7 real test users** instead — see the Test Users article.
+> ⚠️ **Bots are currently DEACTIVATED.** The kill switch \`BOTS_ENABLED = false\` is set in \`bots/run_bots.js\`. Bot Firestore profiles have been removed via \`cleanup_bots.js\`. The ranking is currently populated by real users only.
 
 ## What Are Bots?
 
@@ -1885,58 +1887,17 @@ async function ensureTestUsersArticle() {
   await db.collection('docs').doc('seed-test-users').set({
     title:   'Test Users',
     order:   11,
-    content: `## Overview
+    content: `## Status
 
-Seven real Firebase accounts exist for testing the app during the Google Play closed testing period. These accounts use genuine-looking profile photos (not AI-generated) so the app feels realistic to paid testers.
+> ⚠️ **Test accounts have been deleted.** All 7 test accounts were removed from Firebase Auth and Firestore. They are no longer active.
 
-## Shared Password
+## History
 
-\`\`\`
-Tester2025!
-\`\`\`
+Seven real Firebase accounts were created during the Google Play closed alpha testing period to seed the platform with realistic profiles. They were deleted before the open testing release.
 
-All 7 accounts use this password.
+## If You Need Test Accounts
 
-## Accounts
-
-| Name | Email | Gender | Age | City |
-|---|---|---|---|---|
-| Sophia | sophia.hartmann@gmail.com | Woman | 22 | Berlin |
-| Emma | emma.sullivan@gmail.com | Woman | 21 | New York |
-| Mia | mia.dawson@gmail.com | Woman | 23 | Los Angeles |
-| Ava | ava.reynolds@gmail.com | Woman | 20 | Chicago |
-| Lena | lena.fischer@gmail.com | Woman | 24 | Frankfurt |
-| Lucas | lucas.bauer@gmail.com | Man | 25 | Berlin |
-| Max | max.klein@gmail.com | Man | 23 | Berlin |
-
-## Profile Settings
-
-All accounts are configured with:
-
-- \`profileComplete: true\`
-- \`isBot: false\`
-- \`datingEnabled: true\`
-- \`receivingMode: global\`
-- \`givingMode: global\`
-- Photos uploaded to Firebase Storage at \`real_user_photos/{slug}/\`
-
-## Sign-In Steps
-
-1. Open the Solidten app
-2. Tap **Sign In** (not Sign Up)
-3. Enter the email and the shared password above
-4. The profile is already complete — you land directly on the main screen
-
-## Management Scripts
-
-Run from the \`bots/\` directory (requires \`serviceAccountKey.json\`):
-
-| Command | What it does |
-|---|---|
-| \`node setup_real_users.js\` | Create all 7 accounts (Auth + Storage + Firestore). Safe to re-run. |
-| \`node setup_real_users.js --delete\` | Delete all 7 accounts from Auth and Firestore |
-
-> ℹ️ These accounts are intentionally **not** bots — they appear in the rating queue and ranking just like any real user.
+Create new accounts directly through the app using the normal sign-up flow. Alternatively, use the \`bots/setup_real_users.js\` script to re-create them (requires \`serviceAccountKey.json\`).
 `,
     createdAt: now,
     updatedAt: now,
@@ -1966,7 +1927,7 @@ async function upsertNamedArticle(seedId, title, order, content) {
 
 // ── Cloud Functions article ────────────────────────────────────────────────────
 async function ensureCloudFunctionsArticle() {
-  await upsertNamedArticle('seed-cloud-functions', 'Cloud Functions Overview', 3, `## Four Firebase Cloud Functions v2 Are Deployed
+  await upsertNamedArticle('seed-cloud-functions', 'Cloud Functions Overview', 3, `## Eight Cloud Functions Are Deployed
 
 ### onReportCreated (us-central1)
 
@@ -1990,7 +1951,23 @@ Called when an admin clicks "Permanent Ban" in the admin panel. Permanently disa
 
 Only processes files matching \`users/{uid}/photos/{filename}\` and of image content type. Runs Google Cloud Vision SafeSearch. Deletes and flags photos rated LIKELY or VERY_LIKELY for adult content, violence, or racy content.
 
-> **Note:** Runs in us-east1 because Storage triggers must match the bucket's region. The other functions run in us-central1.
+> Runs in us-east1 because Storage triggers must match the bucket's region.
+
+---
+
+### onUserDeleted (v1 auth trigger — global)
+
+**Trigger:** Firebase Auth user account deleted
+
+Handles full data cleanup: deletes the Firestore user document, all subcollections (receivedRatings, givenRatings, reports, unmatched), all Storage photos, recalculates average ratings for every user they rated, and deletes all conversations they participated in.
+
+---
+
+### rateProfile (callable — us-central1)
+
+**Trigger:** Called from the Flutter app (authenticated users only)
+
+Accepts \`photoUrls\` and \`gender\`. Downloads all profile photos via the Admin SDK, resizes them with \`sharp\`, and sends to Anthropic Claude Opus for multi-category attractiveness analysis. Validates human content and same-person check before scoring. Saves result to \`users/{uid}/aiRating/latest\`.
 
 ---
 
@@ -1998,22 +1975,32 @@ Only processes files matching \`users/{uid}/photos/{filename}\` and of image con
 
 **Trigger:** Firebase Storage object created in \`solidten-prod.firebasestorage.app\`
 
-Only processes files matching \`users/{uid}/photos/{filename}\` — the same upload event as \`onPhotoUploaded\`. Both functions fire for every new photo.
+Only processes files matching \`users/{uid}/photos/{filename}\`. Resizes to 400 px wide JPEG quality 80 using \`sharp\`, stores at \`users/{uid}/thumbs/{filename}\`, and writes the URL to Firestore at \`users/{uid}.thumbs.{filename}\`. Used by ranking and messaging list avatars to avoid loading full-resolution photos.
 
-**Steps:**
-1. Downloads the original to \`/tmp/\`
-2. Resizes to **400 px wide, JPEG quality 80** using the \`sharp\` npm package
-3. Uploads the thumbnail to \`users/{uid}/thumbs/{filename}\` — a *different path* than the original, preventing a recursive trigger loop
-4. Attaches a UUID as \`firebaseStorageDownloadTokens\` metadata to create a permanent download URL
-5. Writes the thumb URL to Firestore: \`users/{uid}.thumbs.{filename}\`
+---
 
-The Flutter app uses thumbnail URLs for 42 px ranking row avatars and 52 px messaging list avatars, reducing those images from up to 4 MB to ~15 KB. Full-resolution URLs are kept for the rating screen and profile sheet.
+### validateUserPhotos (us-east1)
+
+**Trigger:** Firebase Storage object created in \`solidten-prod.firebasestorage.app\`
+
+Only processes files matching \`users/{uid}/photos/{filename}\`. Waits 30 seconds after upload (to let rapid consecutive uploads settle), then re-reads all current \`photoUrls\` from Firestore and validates each one via Claude Haiku. Sets \`hasNonHumanPhoto: true/false\` on the user document. Profiles with \`hasNonHumanPhoto: true\` are excluded from the rating queue.
+
+---
+
+### assignRegistrationNumber (v1 auth trigger — global)
+
+**Trigger:** Firebase Auth user account created
+
+Runs a Firestore transaction to atomically increment \`meta/registrationCount.count\` and write \`registrationNumber\` and \`isFirst500\` (true if count ≤ 500) to the new user's Firestore document. Uses \`merge: true\` so it never overwrites fields written later by onboarding.
 
 ---
 
 ## Secrets
 
-The Gmail App Password is stored in **Firebase Secret Manager** as \`GMAIL_APP_PASSWORD\`. Accessed at runtime via \`defineSecret('GMAIL_APP_PASSWORD')\`.
+| Secret | Used by |
+|---|---|
+| \`GMAIL_APP_PASSWORD\` | onReportCreated, onPhotoUploaded |
+| \`ANTHROPIC_API_KEY\` | rateProfile, validateUserPhotos |
 
 ## Runtime
 
@@ -2027,7 +2014,8 @@ All functions run on **Node.js 20 (2nd Gen Cloud Run)**. Node.js 20 is deprecate
 | \`firebase-functions\` | All functions |
 | \`@google-cloud/vision\` | onPhotoUploaded |
 | \`nodemailer\` | onReportCreated |
-| \`sharp\` | generateThumbnail |
+| \`sharp\` | generateThumbnail, rateProfile |
+| \`@anthropic-ai/sdk\` | rateProfile, validateUserPhotos |
 
 ## Deploy
 
@@ -2074,6 +2062,10 @@ The main user document, created when onboarding is complete.
 | \`givingMode\` | string | Which profiles appear in this user's queue: \`global\` / \`local\` |
 | \`givingRadiusMiles\` | number | Radius for \`local\` giving mode |
 | \`createdAt\` | timestamp | Account creation time |
+| \`registrationNumber\` | number | Sequential sign-up number assigned by the \`assignRegistrationNumber\` Cloud Function |
+| \`isFirst500\` | bool | True if this user was among the first 500 to register |
+| \`registrationPromoSeen\` | bool | True once the user has dismissed the First 500 promo screen |
+| \`hasNonHumanPhoto\` | bool | Set by \`validateUserPhotos\` — true if any uploaded photo does not show a human |
 
 ---
 
@@ -2165,6 +2157,16 @@ Admin documentation articles (this panel).
 | \`order\` | number | Sort order in sidebar |
 | \`createdAt\` | timestamp | Creation time |
 | \`updatedAt\` | timestamp | Last edit time |
+
+---
+
+### \`meta/registrationCount\`
+
+Singleton document used by the \`assignRegistrationNumber\` Cloud Function.
+
+| Field | Type | Description |
+|---|---|---|
+| \`count\` | number | Total number of registered users (incremented atomically on each sign-up) |
 `);
   console.log('[docs] Firestore Data Model article synced.');
 }
@@ -2297,60 +2299,190 @@ The \`thumbFor(photoUrl, thumbs)\` helper in \`rating_service.dart\` extracts th
 async function ensureChangelogArticle() {
   await upsertNamedArticle('seed-changelog', 'Changelog', 12, `## Android Release History
 
-Released to the **Google Play closed alpha** track.
-
 ---
 
-## v1.0.0+6 — Current
-*Auth error messages · Tab refresh · Chat sort fix*
+## v1.1.0+11 — June 20, 2026 — Current
+*Open testing release*
 
-### Auth Screens
-- Login now shows specific error messages mapped from Firebase error codes: wrong password, no account found, email already in use, invalid email, rate-limited, network error, disabled account
-- Registration shows specific messages including "An account with this email already exists. Please sign in instead."
-- Client-side blank-email validation before calling Firebase
+Released to the **Google Play open testing** track.
 
-### Screen Refresh on Tab Switch
-- Switching to **Rankings** re-fetches the global leaderboard so updated average ratings are visible without a restart
-- Switching to **Messaging** re-fetches the match list so new matches appear immediately
-- Switching to **Rating** reloads the profile queue if it is empty (all profiles rated, or initial load failed); mid-queue position is preserved
+### New Features
 
-### Messaging List Sort
-- Conversations now correctly move to the top of the list when a message is sent
-- Fixed by adding \`ValueKey(conversationId)\` to list items so Flutter reconciles by identity rather than position when the sort order changes
+**Email verification**
+- Verification email sent automatically on registration
+- Users must verify their email before accessing the app
+- Verify email screen with resend button (60-second cooldown) and sign-out link
+- Router gates the entire app behind \`emailVerified == true\`
 
----
-
-## v1.0.0+5
-*Thumbnail URLs wired to small display contexts*
-
-- Ranking list avatars (42 px) and messaging list avatars (52 px) now use thumbnail URLs from the \`thumbs\` Firestore map instead of full-resolution photos, reducing those images from up to 4 MB to ~15 KB
-- Added \`thumbFor()\` helper: extracts filename from a Firebase Storage URL and looks it up in the \`thumbs\` map, falling back to the full URL if no thumbnail exists yet
-- \`RankingUser\` and \`MatchedUser\` Flutter models updated to carry the \`thumbs: Map<String, String>\` field
-
----
-
-## v1.0.0+4
-*Rating queue fix · Crash fixes · Nav bar · Rankings tap · Image caching · Thumbnail Cloud Function*
+**Photo content validation**
+- New \`validateUserPhotos\` Cloud Function triggers 30 seconds after every photo upload
+- Validates all current profile photos via Claude Haiku — flags profile if any photo does not show a human
+- Flagged profiles are excluded from the rating queue (\`hasNonHumanPhoto: true\` filter)
+- Warning message shown on the user's profile tab with instructions to replace photos
 
 ### Bug Fixes
-- **Rating queue reset on restart** — The rating transaction's read of \`receivedRatings\` was denied by the Firestore security rule, silently rolling back the whole transaction. \`givenRatings\` was never written, so every profile appeared unrated on the next launch. Fixed by allowing the rater to read their own entry (\`ratingId == request.auth.uid\`).
-- **Register screen flash** — After sign-up, the register screen briefly reappeared before onboarding. Fixed by skipping the \`profileComplete.isLoading\` guard in the GoRouter redirect when \`needsSetup\` is already true.
-- **Crash: ref after unmount** (register screen) — The catch block called \`ref.read()\` without checking \`mounted\` after an async gap. Fixed.
-- **Crash: Google Fonts network fetch** — On first launch without internet, the fonts package tried to fetch font files and crashed. Fixed with \`GoogleFonts.config.allowRuntimeFetching = false\`.
-- **Nav bar icon clipping on small screens** — Five items at fixed 80 px width totalled 400 px, overflowing on 375 px screens. Fixed by replacing fixed widths with \`Expanded\` widgets.
 
-### Features
-- **Rankings tap-to-profile** — Tapping any row in the global ranking now opens that user's profile sheet
-- **Image disk caching** — All profile photo widgets migrated from \`Image.network\` to \`CachedNetworkImage\` for persistent on-device caching
-- **Thumbnail Cloud Function** — New \`generateThumbnail\` function (us-east1) resizes uploaded photos to 400 px wide JPEG, stores them at \`users/{uid}/thumbs/{filename}\`, and writes the URL to Firestore at \`users/{uid}.thumbs.{filename}\`
+- Fixed: after completing onboarding, app landed on the messaging tab instead of the rating tab
+- Fixed: First 500 badge not showing on own profile — \`saveProfile()\` was using Firestore \`set()\` without merge, overwriting the \`isFirst500\` field; changed to \`set(..., merge: true)\`
 
 ---
 
-## v1.0.0+3 and earlier
+## v1.0.0+10 — June 19, 2026
+*First production release, submitted to Google Play Store*
 
-Not documented here. See git history in the \`solid10-git\` repository.
+### Features
+
+**Rating**
+- Swipe-based rating queue (1–10 scale) with fireworks overlay on perfect 10
+- Horizontal swipe to skip forward/back; vertical swipe to cycle photos
+- Profiles with no photos excluded from the rating queue
+
+**Rankings**
+- Global leaderboard ordered by average rating, filter by gender and country
+- Tap any profile to open the full profile sheet
+
+**Messaging**
+- Matches form when two users rate each other within ±1 point
+- Real-time chat with system messages on match
+- Unmatch from within conversation
+
+**Profile**
+- Photo carousel (up to 6 photos with drag-to-reorder)
+- AI Rating: multi-photo analysis with scored categories and written verdict
+- Public/private rating visibility toggle
+
+**First 500 Promo**
+- Cloud Function assigns a sequential registration number to every new user
+- First 500 users receive \`isFirst500: true\` and lifetime free access
+- Promo screen after registration: "You are user no. X" with perks checklist
+- Golden First 500 badge shown on profile tab
+
+**Auth**
+- Email/password registration and login
+- Password reset via email
+- Account deletion (GDPR)
+
+### Infrastructure
+
+- Firebase Auth, Firestore, Storage
+- Cloud Functions: onReportCreated, onUserBanned, onPhotoUploaded, onUserDeleted, rateProfile, generateThumbnail, assignRegistrationNumber
+- Firestore security rules and Storage rules
+- Thumbnail generation on photo upload (400 px wide JPEG)
+- Image disk caching via CachedNetworkImage
 `);
   console.log('[docs] Changelog article synced.');
+}
+
+// ── Firebase Project Setup article ───────────────────────────────────────────
+async function ensureFirebaseSetupArticle() {
+  await upsertNamedArticle('seed-firebase-setup', 'Firebase Project Setup', 4, `## Project Details
+
+| Property | Value |
+|---|---|
+| Project ID | \`solidten-prod\` |
+| Project Number | \`199193989105\` |
+| Firebase Console | [console.firebase.google.com/project/solidten-prod](https://console.firebase.google.com/project/solidten-prod) |
+
+## Services in Use
+
+### Firebase Authentication
+Email/password sign-in with email verification required before app access. Custom claims (\`admin: true\`) used for admin access. Admins are set via the \`bots/set_admin_claim.js\` script.
+
+### Cloud Firestore
+Primary database. Default region: **us-central** (multi-region). See *Firestore Data Model* for the collection structure.
+
+### Firebase Storage
+User photo uploads. Bucket: \`solidten-prod.firebasestorage.app\`. Region: **us-east1**.
+
+### Admin Panel
+Admin panel at \`https://solid10.app/admin\` via GitHub Pages on the \`solid10-git\` repository. Note: This is GitHub Pages, not Firebase Hosting — the Firebase Hosting service is not separately configured.
+
+### Cloud Functions
+Eight functions deployed. See *Cloud Functions Overview*.
+
+### Secret Manager
+Stores \`GMAIL_APP_PASSWORD\` and \`ANTHROPIC_API_KEY\`.
+
+## Flutter App Config
+
+Generated config at \`app/lib/firebase_options.dart\`. Regenerated with:
+
+\`\`\`
+flutterfire configure --project=solidten-prod
+\`\`\`
+
+## Admin Account
+
+**Email:** \`hoberg.hannes@gmail.com\`
+
+This account is separate from app users — it only exists in Firebase Auth and never goes through app onboarding. Admin access is granted by running:
+
+\`\`\`
+cd bots
+node set_admin_claim.js
+\`\`\`
+
+This sets \`{ admin: true }\` as a custom claim on the account via the Firebase Admin SDK.
+`);
+  console.log('[docs] Firebase Project Setup article synced.');
+}
+
+// ── Admin Panel Guide article ─────────────────────────────────────────────────
+async function ensureAdminPanelGuideArticle() {
+  await upsertNamedArticle('seed-admin-panel-guide', 'Admin Panel Guide', 9, `## Using This Panel
+
+**URL:** \`https://solid10.app/admin\`
+
+Only accounts with the Firebase custom claim \`admin: true\` can sign in. The admin account is \`hoberg.hannes@gmail.com\`. This account is separate from regular app users.
+
+---
+
+## Reporting
+
+Shows all profiles with \`profileHidden: true\` or \`suspended: true\` (merged and deduplicated). Each card displays:
+
+- All uploaded photos in a scrollable horizontal gallery
+- Status badges: Hidden / Suspended / Banned
+- Pending report count with an expandable detail list showing category, sub-category, reporter UID, and timestamp
+- City and profile UID
+
+### Actions
+
+| Button | What it does |
+|---|---|
+| ↩ Restore | Clears \`profileHidden\` and \`suspended\`, marks all pending reports \`reviewed_restored\` |
+| ✓ Keep Hidden | Leaves profile hidden, marks reports \`reviewed_confirmed\` |
+| ⛔ Permanent Ban | Sets \`banned\`, \`suspended\`, \`profileHidden\` to true; disables Firebase Auth login permanently |
+
+Click **↻ Refresh** to reload the queue manually.
+
+---
+
+## Documentation
+
+This section. Articles are stored in the Firestore \`docs\` collection and are only visible to admin users.
+
+- Click any article title in the sidebar or on the home grid to read it
+- Click **Edit** to modify the title or body
+- Click **Delete** to permanently remove an article
+- Click **+ New article** to create a new one
+
+Articles support full **Markdown** formatting including headings, bold, italics, bullet lists, code blocks, and tables.
+
+---
+
+## Granting Admin Access
+
+Admin custom claims are set via the Firebase Admin SDK script:
+
+\`\`\`
+cd bots
+node set_admin_claim.js
+\`\`\`
+
+This sets \`{ admin: true }\` on the target account. The script must be run with a service account that has the \`Firebase Admin SDK Administrator Service Agent\` role.
+`);
+  console.log('[docs] Admin Panel Guide article synced.');
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
